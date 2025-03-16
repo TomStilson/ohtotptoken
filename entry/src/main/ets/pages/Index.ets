@@ -8,6 +8,7 @@ import { url, util } from '@kit.ArkTS';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { BusinessError, systemDateTime } from '@kit.BasicServicesKit';
 import { router } from '@kit.ArkUI';
+import { deviceInfo } from '@kit.BasicServicesKit';
 import promptAction from '@ohos.promptAction'
 import { SteamConfigDialog } from '../dialogs/SteamConfigDialog';
 import { QRCodeDialog } from '../dialogs/QRCodeDialog';
@@ -34,6 +35,7 @@ let tkStore = TokenStore.getInstance();
 struct Index {
   @Local btn_token_add_clicked: number = 0;
   @Local CurrentTokens: TokenConfig[] = [];
+  @Local AvoidTopItems: number[] = [];
   @Local tab_bar_index: number = 0;
   @Local token_loaded: Boolean = true;
   @Local token_hide_enable: SettingValue = AppPreference.getAppearance('app_safety_hide_token_enable');
@@ -52,6 +54,7 @@ struct Index {
   private dialog_forti_config?: CustomDialogController;
   private dialog_steam_config?: CustomDialogController;
   private dialog_qrcode?: CustomDialogController;
+  private is_tablet:boolean = deviceInfo.deviceType == "tablet";
   private DropFilesDialogIsOpen:boolean=false;
 
   private readonly eventId = 'usual.event.PRIVACY_STATE_CHANGED';
@@ -104,6 +107,9 @@ struct Index {
       AppStorage.setOrCreate("BundleInfo", bundleInfo);
     });
     AppStorage.setOrCreate("AppPrivacyManageInfoUrl", 'https://www.duan.red/yylx/opt/privacy-statement-zh-cn.htm');
+
+    // 插入留空ListItem
+    this.AvoidTopItems = this.is_tablet ? [0, 0, 0] : [0];
 
     tkStore.initTokenStore().then(() => {
       getContext(this).eventHub.on('onTokenChanged', () => this.onTokenChanged());
@@ -319,7 +325,7 @@ struct Index {
               this.dialog_totp_config = new CustomDialogController({
                 builder: TOTPConfigDialog({
                   scan_code_original_Value: code, // 弹窗立刻扫码赋值
-                  confirm: (new_conf) => {this.updateTokenConfig(JSON.parse(new_conf))}
+                  confirm: (new_conf) => {this.updateTokenConfig(JSON.parse(new_conf))},
                 })
               })
               this.dialog_totp_config.open()
@@ -331,7 +337,7 @@ struct Index {
         .onClick(() => {
           this.dialog_totp_config = new CustomDialogController({
             builder: TOTPConfigDialog({
-              confirm: (new_conf) => {this.updateTokenConfig(JSON.parse(new_conf))}
+              confirm: (new_conf) => {this.updateTokenConfig(JSON.parse(new_conf))},
             })
           })
           this.dialog_totp_config.open()
@@ -539,11 +545,13 @@ struct Index {
                 Column() {
 
                   List({ space: 10, initialIndex: 0 }) {
-                    ListItem() {
-                      Row()
-                        .height(50 + this.appTopAvoidHeight)
-                        .width('100%')
-                    }
+                    ForEach(this.AvoidTopItems, (index: number) => {
+                      ListItem() {
+                        Row()
+                          .height(50 + this.appTopAvoidHeight)
+                          .width('100%')
+                      }
+                    })
                     ForEach(this.CurrentTokens, (token: TokenConfig, index: number) => {
                       ListItem() {
                         TokenItem({
@@ -581,6 +589,7 @@ struct Index {
                   .layoutWeight(1)
                   .width('100%')
                   .height('100%')
+                  .lanes(this.AvoidTopItems.length)
                   .chainAnimation(true)
                   .scrollBar(BarState.Off)
                   .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
